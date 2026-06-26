@@ -1,0 +1,9 @@
+numpy
+pandas
+matplotlib
+openpyxl
+opencv-python
+pillow
+pyyaml
+joblib
+pyarrow

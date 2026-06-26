@@ -1,0 +1,10 @@
+numpy
+pandas
+matplotlib
+openpyxl
+opencv-python-headless
+pillow
+pyyaml
+joblib
+pyarrow
+pytest

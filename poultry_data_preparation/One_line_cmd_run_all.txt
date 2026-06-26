@@ -1,0 +1,7 @@
+python -m poultry_data_preparation.src.main --config poultry_data_preparation/config/workspace_min_smoke_0625.yaml --stage all --force-recompute-all
+python -m poultry_data_preparation.src.main --config poultry_data_preparation/config/workspace_smoke.yaml --stage all --max-media 2 --max-windows 100
+python -m poultry_data_preparation.src.main --config poultry_data_preparation/config/workspace_sample.yaml --stage all
+python -m poultry_data_preparation.src.main --config poultry_data_preparation/config/workspace_sample.yaml --stage all --force-recompute-all
+bash poultry_data_preparation/container_related/build_local_sif.sh
+bash poultry_data_preparation/container_related/run_local_apptainer_smoke_test.sh
+bash poultry_data_preparation/container_related/run_apptainer_pipeline.sh --config poultry_data_preparation/config/workspace_min_smoke_0625.yaml --stage all --force-recompute-all

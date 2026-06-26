@@ -1,0 +1,40 @@
+# Manual fallback semantic-zone definitions.
+# Use this file only when automatic detection from the annotated reference image fails.
+#
+room_1:
+  zone_config_id: "room_1_semantic_manual_v2"
+  image_width: 1920
+  image_height: 1080
+  reference_image: "C:/Users/tenpercent/Desktop/Yuxi Wang - Summer 2026/data/metadata/semantic_zone_refs/room1_reference.png"
+  annotated_image: "C:/Users/tenpercent/Desktop/Yuxi Wang - Summer 2026/data/metadata/semantic_zone_refs/room1_reference_with_notes.png"
+  zones:
+    - zone_id: "drinking_zone"
+      display_name: "Drinking Area"
+      semantic_type: "drinking"
+      polygon:
+        - [390, 150]
+        - [584, 150]
+        - [584, 511]
+        - [390, 511]
+    - zone_id: "feeding_zone"
+      display_name: "Feeding Area"
+      semantic_type: "feeding"
+      polygon:
+        - [587, 315]
+        - [862, 315]
+        - [862, 647]
+        - [587, 647]
+    - zone_id: "open_movement_zone"
+      display_name: "Open Movement"
+      semantic_type: "open_movement"
+      polygons:
+        - [[390, 29], [590, 29], [590, 144], [390, 144]]
+        - [[587, 29], [1189, 29], [1189, 313], [587, 313]]
+        - [[865, 313], [1189, 313], [1189, 660], [865, 660]]
+        - [[390, 515], [583, 515], [583, 657], [390, 657]]
+    - zone_id: "resting_zone"
+      display_name: "Resting Area"
+      semantic_type: "resting"
+      polygons:
+        - [[529, 663], [1192, 663], [1192, 934], [529, 934]]
+        - [[1193, 27], [1484, 27], [1484, 934], [1193, 934]]

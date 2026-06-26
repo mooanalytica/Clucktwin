@@ -1,0 +1,62 @@
+paths:
+  project_root: "../.."
+  raw_root: "first_week_data_cleaning/data/raw"
+  metadata_root: "first_week_data_cleaning/data/metadata"
+  output_root: "poultry_data_preparation/outputs"
+  cache_root: "poultry_data_preparation/outputs/cache"
+
+inputs:
+  video_globs:
+    - "video/Room */**/*.MP4"
+    - "video/Room */**/*.mp4"
+  env_glob: "env/Combined Room *.xlsx"
+  semantic_zone_ref_dir: "semantic_zone_refs"
+  caretaker_event_glob:
+    - "Caretaker Entry Video/Room */**/*.MP4"
+    - "Caretaker Entry Video/Room */**/*.mp4"
+
+tools:
+  ffprobe_path: "ffprobe"
+  ffmpeg_path: "ffmpeg"
+  exiftool_path: "exiftool"
+
+rooms:
+  include: "auto"
+  exclude: []
+
+windowing:
+  window_seconds: 30
+  stride_seconds: 10
+
+video_features:
+  enabled: true
+  method: "frame_difference"
+  resize_width: 640
+  max_windows: null
+  max_windows_per_room: null
+  max_windows_per_media: null
+  max_media: null
+  force_recompute: false
+
+audio_features:
+  enabled: true
+  sample_rate: 22050
+  frame_seconds: 1.0
+  analysis_frame_seconds: 0.1
+  entropy_bands: 10
+  regime_score_smoothing_windows: 12
+  cache_per_media_audio: true
+  force_recompute: false
+
+semantic_zones:
+  enabled: true
+  auto_detect_from_annotated_image: true
+  allow_manual_fallback: true
+
+output:
+  write_csv: true
+  write_parquet: false
+  copy_manifest_for_mvp: true
+  write_partitioned_outputs: true
+  timestamp_output_root: true
+  paths_in_outputs: "relative"
