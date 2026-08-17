@@ -116,7 +116,7 @@ def extract_video_features(
     if cv2 is None:
         raise RuntimeError("OpenCV is required for video semantic-zone feature extraction.")
 
-    zone_config_map = {item["room_id"]: item for item in zone_configs}
+    zone_config_lookup = _build_zone_config_lookup(zone_configs)
     all_rows: list[dict] = []
     failed_rows: list[dict] = []
     media_lookup = media_df.set_index("media_id", drop=False).to_dict(orient="index")
@@ -127,7 +127,8 @@ def extract_video_features(
     for group_index, (media_id, media_windows) in enumerate(grouped, start=1):
         media_windows = media_windows.sort_values("video_start_offset_sec", kind="stable").reset_index(drop=True)
         room_id = str(media_windows.iloc[0]["room_id"])
-        zone_config = zone_config_map.get(room_id)
+        session_id = str(media_windows.iloc[0].get("session_id", ""))
+        zone_config = _select_zone_config(zone_config_lookup, room_id, session_id)
         LOGGER.info("Video features media %s/%s: %s (%s windows)", group_index, total_groups, media_id, len(media_windows))
         if zone_config is None:
             for _, row in media_windows.iterrows():
@@ -165,6 +166,25 @@ def extract_video_features(
     _plot_room_level_outputs(zone_feature_df, biomarker_df, config)
     report_path.write_text(_build_video_feature_report(zone_feature_df, biomarker_df, failed_df), encoding="utf-8")
     return VideoFeatureResult(zone_feature_df, biomarker_df, zone_feature_output_path, biomarker_output_path, report_path, failed_df)
+
+
+def _build_zone_config_lookup(zone_configs: list[dict]) -> dict[str, dict]:
+    session_configs: dict[tuple[str, str], dict] = {}
+    room_configs: dict[str, dict] = {}
+    for zone_config in zone_configs:
+        room_id = str(zone_config.get("room_id", ""))
+        session_id = str(zone_config.get("session_id", "") or "")
+        if room_id and session_id:
+            session_configs.setdefault((room_id, session_id), zone_config)
+        elif room_id:
+            room_configs.setdefault(room_id, zone_config)
+    return {"session": session_configs, "room": room_configs}
+
+
+def _select_zone_config(zone_config_lookup: dict[str, dict], room_id: str, session_id: str) -> dict | None:
+    session_configs = zone_config_lookup.get("session", {})
+    room_configs = zone_config_lookup.get("room", {})
+    return session_configs.get((room_id, session_id)) or room_configs.get(room_id)
 
 
 def build_semantic_biomarker_table(zone_feature_df: pd.DataFrame) -> pd.DataFrame:
@@ -582,7 +602,7 @@ def _build_dry_run_report(window_df: pd.DataFrame, zone_configs: list[dict], ena
         f"- Video feature extraction enabled: `{enabled}`",
         "- Dry run mode skipped heavy video feature extraction.",
         f"- Planned windows: {len(window_df)}",
-        f"- Rooms with valid zone configs: {len(zone_configs)}",
+        f"- Semantic zone configs available: {len(zone_configs)}",
     ]
     return "\n".join(lines) + "\n"
 

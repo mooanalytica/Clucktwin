@@ -144,3 +144,34 @@ def test_discover_zone_reference_pairs_prefers_polygon_annotations() -> None:
 
     assert pairs["room_1"]["reference_image"] == reference_path
     assert pairs["room_1"]["annotated_image"] == polygon_annotated_path
+
+
+def test_discover_zone_reference_pairs_supports_session_reference_folders() -> None:
+    scratch_root = Path("tmp_tests")
+    scratch_root.mkdir(parents=True, exist_ok=True)
+    tmp_path = scratch_root / f"zone_test_{uuid.uuid4().hex}"
+    tmp_path.mkdir(parents=True, exist_ok=True)
+
+    room_reference_path = tmp_path / "room1_reference.png"
+    room_annotated_path = tmp_path / "room1_reference_with_notes_polygon.png"
+    for path in (room_reference_path, room_annotated_path):
+        path.write_bytes(b"placeholder")
+
+    session_dir = tmp_path / "by_session" / "Room 1" / "Room 1 (16, 17 Aug)"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    session_reference_path = session_dir / "reference.png"
+    session_annotated_path = session_dir / "reference_with_notes_polygon.png"
+    for path in (session_reference_path, session_annotated_path):
+        path.write_bytes(b"placeholder")
+
+    pairs = discover_zone_reference_pairs(tmp_path)
+    session_pair = pairs["room_1::room_1_16_17_aug"]
+
+    assert pairs["room_1"]["reference_scope"] == "room"
+    assert pairs["room_1"]["annotated_image"] == room_annotated_path
+    assert session_pair["reference_scope"] == "session"
+    assert session_pair["room_id"] == "room_1"
+    assert session_pair["session_id"] == "room_1_16_17_aug"
+    assert session_pair["session_folder"] == "Room 1 (16, 17 Aug)"
+    assert session_pair["reference_image"] == session_reference_path
+    assert session_pair["annotated_image"] == session_annotated_path

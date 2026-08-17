@@ -43,6 +43,11 @@ Project_Root/
         room1_reference_with_notes_polygon.png
         room2_reference.png
         room2_reference_with_notes_polygon.png
+	by_session/
+          Room 1/
+            Room 1 (16, 17 Aug)/
+              reference.png
+              reference_with_notes_polygon.png
   poultry_data_preparation/
     config/
     src/

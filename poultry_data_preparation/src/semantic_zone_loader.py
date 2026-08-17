@@ -11,7 +11,8 @@ import yaml
 from PIL import Image
 
 from .config import PreparationConfig
-from .room_parser import parse_room_identifier_from_path
+from .room_parser import UNKNOWN_ROOM_ID, parse_room_identifier_from_path
+from .utils import slugify
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -54,6 +55,11 @@ ANNOTATED_REFERENCE_SUFFIXES = [
     "_reference_with_notes_polygon.png",
     "_reference_with_notes.png",
 ]
+GENERIC_ANNOTATED_REFERENCE_NAMES = [
+    "reference_with_notes_polygon.png",
+    "reference_with_notes.png",
+]
+SESSION_REFERENCE_DIR_NAME = "by_session"
 
 REQUIRED_AUTOMATIC_ZONE_IDS = {"drinking_zone", "feeding_zone"}
 EXTENDED_AUTOMATIC_ZONE_IDS = {"open_movement_zone", "resting_zone"}
@@ -66,34 +72,37 @@ def load_semantic_zone_configs(config: PreparationConfig, dry_run: bool = False)
     zone_configs: list[dict] = []
     warnings: list[str] = []
 
-    for room_id, pair in zone_pairs.items():
+    for pair_key, pair in zone_pairs.items():
+        room_id = str(pair.get("room_id", pair_key))
         if not _room_is_included(room_id, config):
             continue
 
-        LOGGER.info("Preparing semantic zones for %s", room_id)
+        LOGGER.info("Preparing semantic zones for %s", pair_key)
         built_config = None
         try:
             built_config = build_zone_config_from_images(
                 room_id=room_id,
-                reference_image=pair["reference_image"],
-                annotated_image=pair["annotated_image"],
+                reference_image=Path(pair["reference_image"]),
+                annotated_image=Path(pair["annotated_image"]),
             )
+            _apply_reference_pair_metadata(built_config, pair)
         except Exception as exc:
-            warnings.append(f"{room_id}:automatic_detection_failed:{exc}")
+            warnings.append(f"{pair_key}:automatic_detection_failed:{exc}")
 
         if built_config is not None and not _validate_zone_config(built_config)["valid"]:
-            warnings.append(f"{room_id}:automatic_detection_invalid")
+            warnings.append(f"{pair_key}:automatic_detection_invalid")
             built_config = None
 
         if built_config is None and config.semantic_allow_manual_fallback:
             manual_config = manual_fallbacks.get(room_id)
             if manual_config is not None:
-                built_config = manual_config
+                built_config = dict(manual_config)
                 built_config["detection_mode"] = "manual_fallback"
-                warnings.append(f"{room_id}:manual_fallback_used")
+                _apply_reference_pair_metadata(built_config, pair, preserve_zone_config_id=True)
+                warnings.append(f"{pair_key}:manual_fallback_used")
 
         if built_config is None:
-            warnings.append(f"{room_id}:no_valid_zone_config")
+            warnings.append(f"{pair_key}:no_valid_zone_config")
             continue
 
         zone_configs.append(built_config)
@@ -111,23 +120,112 @@ def load_semantic_zone_configs(config: PreparationConfig, dry_run: bool = False)
     )
 
 
-def discover_zone_reference_pairs(reference_dir: Path) -> dict[str, dict[str, Path]]:
-    pairs: dict[str, dict[str, Path]] = {}
+def discover_zone_reference_pairs(reference_dir: Path) -> dict[str, dict[str, object]]:
+    pairs: dict[str, dict[str, object]] = {}
     for suffix in ANNOTATED_REFERENCE_SUFFIXES:
         for annotated_path in sorted(reference_dir.glob(f"*{suffix}"), key=lambda path: path.as_posix().lower()):
-            base_name = annotated_path.name[: -len(suffix)]
-            reference_path = annotated_path.with_name(base_name + "_reference.png")
-            if not reference_path.exists():
+            reference_path = _matching_reference_image(annotated_path)
+            if reference_path is None:
                 continue
             room_result = parse_room_identifier_from_path(annotated_path.name)
             pairs.setdefault(
                 room_result.room_id,
                 {
+                    "room_id": room_result.room_id,
+                    "reference_scope": "room",
                     "reference_image": reference_path,
                     "annotated_image": annotated_path,
                 },
             )
+    session_reference_dir = reference_dir / SESSION_REFERENCE_DIR_NAME
+    if session_reference_dir.exists():
+        _discover_session_zone_reference_pairs(session_reference_dir, pairs)
     return pairs
+
+
+def _discover_session_zone_reference_pairs(reference_dir: Path, pairs: dict[str, dict[str, object]]) -> None:
+    annotated_paths: list[Path] = []
+    prioritized_patterns = [
+        f"*{ANNOTATED_REFERENCE_SUFFIXES[0]}",
+        GENERIC_ANNOTATED_REFERENCE_NAMES[0],
+        f"*{ANNOTATED_REFERENCE_SUFFIXES[1]}",
+        GENERIC_ANNOTATED_REFERENCE_NAMES[1],
+    ]
+    for pattern in prioritized_patterns:
+        annotated_paths.extend(sorted(reference_dir.rglob(pattern), key=lambda path: path.as_posix().lower()))
+
+    seen: set[Path] = set()
+    for annotated_path in annotated_paths:
+        if annotated_path in seen:
+            continue
+        seen.add(annotated_path)
+        reference_path = _matching_reference_image(annotated_path)
+        if reference_path is None:
+            continue
+
+        try:
+            relative_parent = annotated_path.parent.relative_to(reference_dir)
+        except ValueError:
+            continue
+        relative_parts = list(relative_parent.parts)
+        if len(relative_parts) < 2:
+            continue
+
+        room_folder = relative_parts[0]
+        session_parts = relative_parts[1:]
+        room_result = parse_room_identifier_from_path(room_folder)
+        if room_result.room_id == UNKNOWN_ROOM_ID:
+            room_result = parse_room_identifier_from_path(annotated_path.name)
+        room_id = room_result.room_id
+        session_id = _infer_session_id_from_reference_parts(session_parts, room_id)
+        pair_key = f"{room_id}::{session_id}"
+        pairs.setdefault(
+            pair_key,
+            {
+                "room_id": room_id,
+                "session_id": session_id,
+                "room_folder": room_folder,
+                "session_folder": Path(*session_parts).as_posix(),
+                "reference_scope": "session",
+                "reference_image": reference_path,
+                "annotated_image": annotated_path,
+            },
+        )
+
+
+def _matching_reference_image(annotated_path: Path) -> Path | None:
+    if annotated_path.name in GENERIC_ANNOTATED_REFERENCE_NAMES:
+        reference_path = annotated_path.with_name("reference.png")
+        return reference_path if reference_path.exists() else None
+
+    for suffix in ANNOTATED_REFERENCE_SUFFIXES:
+        if annotated_path.name.endswith(suffix):
+            base_name = annotated_path.name[: -len(suffix)]
+            reference_path = annotated_path.with_name(base_name + "_reference.png")
+            return reference_path if reference_path.exists() else None
+    return None
+
+
+def _infer_session_id_from_reference_parts(session_parts: list[str], room_id: str) -> str:
+    session_text = "_".join(session_parts)
+    session_slug = slugify(session_text)
+    if room_id != UNKNOWN_ROOM_ID and not session_slug.startswith(room_id):
+        return f"{room_id}_{session_slug}"
+    return session_slug
+
+
+def _apply_reference_pair_metadata(zone_config: dict, pair: dict[str, object], preserve_zone_config_id: bool = False) -> None:
+    zone_config["reference_scope"] = str(pair.get("reference_scope", "room"))
+    zone_config["room_id"] = str(pair.get("room_id", zone_config.get("room_id", "")))
+    for field in ("session_id", "room_folder", "session_folder"):
+        value = pair.get(field)
+        if value:
+            zone_config[field] = str(value)
+
+    session_id = zone_config.get("session_id")
+    if session_id and not preserve_zone_config_id:
+        version = str(zone_config.get("zone_config_id", "")).split("_semantic_", 1)[-1] or "v1"
+        zone_config["zone_config_id"] = f"{session_id}_semantic_{version}"
 
 
 def build_zone_config_from_images(room_id: str, reference_image: Path, annotated_image: Path) -> dict:
@@ -463,14 +561,18 @@ def _validate_zone_config(zone_config: dict) -> dict[str, object]:
 
 def _write_zone_outputs(config: PreparationConfig, zone_config: dict) -> None:
     room_id = zone_config["room_id"]
-    output_path = config.zones_output_dir / f"semantic_zone_config_{room_id}.json"
+    output_stem = _zone_output_stem(zone_config)
+    output_path = config.zones_output_dir / f"semantic_zone_config_{output_stem}.json"
     output_path.write_text(json.dumps(zone_config, indent=2), encoding="utf-8")
 
     reference_image = np.asarray(Image.open(zone_config["reference_image"]).convert("RGB"))
-    overlay_path = config.zones_output_dir / f"semantic_zone_overlay_{room_id}.png"
+    overlay_path = config.zones_output_dir / f"semantic_zone_overlay_{output_stem}.png"
     figure, axis = plt.subplots(figsize=(14, 8))
     axis.imshow(reference_image)
-    axis.set_title(f"Semantic Zone Overlay: {room_id}")
+    title = f"Semantic Zone Overlay: {room_id}"
+    if zone_config.get("session_id"):
+        title = f"{title} / {zone_config['session_id']}"
+    axis.set_title(title)
     axis.set_axis_off()
     colors = {spec.zone_id: spec.overlay_hex for spec in ZONE_COLOR_SPECS}
 
@@ -502,6 +604,10 @@ def _write_zone_outputs(config: PreparationConfig, zone_config: dict) -> None:
     plt.close(figure)
 
 
+def _zone_output_stem(zone_config: dict) -> str:
+    return str(zone_config.get("session_id") or zone_config.get("room_id") or zone_config.get("zone_config_id", "unknown_zone"))
+
+
 def _top_left_polygon_vertex(polygon: np.ndarray) -> tuple[float, float]:
     if polygon.size == 0:
         return 0.0, 0.0
@@ -510,11 +616,15 @@ def _top_left_polygon_vertex(polygon: np.ndarray) -> tuple[float, float]:
 
 
 def _build_zone_report(zone_configs: list[dict], warnings: list[str], dry_run: bool) -> str:
+    valid_room_count = len({str(zone_config.get("room_id", "")) for zone_config in zone_configs})
+    session_config_count = sum(1 for zone_config in zone_configs if zone_config.get("session_id"))
     lines = [
         "# Semantic Zone Report",
         "",
         f"- Dry run: `{dry_run}`",
-        f"- Rooms with valid semantic zones: {len(zone_configs)}",
+        f"- Zone configs: {len(zone_configs)}",
+        f"- Rooms with valid semantic zones: {valid_room_count}",
+        f"- Session-level zone configs: {session_config_count}",
         f"- Automatic v2 zones: {', '.join(spec.zone_id for spec in ZONE_COLOR_SPECS)}",
         "- Automatic v1 fallback: drinking_zone, feeding_zone, general_zone",
         "",
@@ -523,9 +633,13 @@ def _build_zone_report(zone_configs: list[dict], warnings: list[str], dry_run: b
     ]
     for zone_config in zone_configs:
         validation = _validate_zone_config(zone_config)
+        target = str(zone_config["room_id"])
+        if zone_config.get("session_id"):
+            target = f"{target}/{zone_config['session_id']}"
         lines.append(
-            f"- `{zone_config['room_id']}` -> `{zone_config['zone_config_id']}` "
-            f"(mode `{zone_config.get('detection_mode', 'unknown')}`, overlap `{validation['overlap_pixels']}` pixels, "
+            f"- `{target}` -> `{zone_config['zone_config_id']}` "
+            f"(scope `{zone_config.get('reference_scope', 'room')}`, mode `{zone_config.get('detection_mode', 'unknown')}`, "
+            f"overlap `{validation['overlap_pixels']}` pixels, "
             f"missing `{validation['missing_zone_ids']}`, missing required `{validation['missing_required_zone_ids']}`, "
             f"empty `{validation['empty_zone_ids']}`)"
         )

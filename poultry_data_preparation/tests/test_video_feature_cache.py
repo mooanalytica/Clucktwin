@@ -16,7 +16,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.config import ensure_output_dirs, load_config
 from src.video_feature_extractor import (
     _build_video_cache_metadata,
+    _build_zone_config_lookup,
     _load_or_compute_media_cache,
+    _select_zone_config,
 )
 
 
@@ -222,3 +224,20 @@ def test_video_feature_cache_recomputes_when_zone_signature_changes(monkeypatch)
     reloaded = joblib.load(cache_path)
     assert np.array_equal(reloaded["interval_center_sec"], np.array([7.0], dtype=float))
     assert reloaded["cache_metadata"]["zone_signature"] == _build_video_cache_metadata(config, updated_zone, absolute_path)["zone_signature"]
+
+
+def test_zone_config_lookup_prefers_session_config_then_room_fallback() -> None:
+    room_config = {
+        "room_id": "room_1",
+        "zone_config_id": "room_1_semantic_v2",
+    }
+    session_config = {
+        "room_id": "room_1",
+        "session_id": "room_1_16_17_aug",
+        "zone_config_id": "room_1_16_17_aug_semantic_v2",
+    }
+    lookup = _build_zone_config_lookup([room_config, session_config])
+
+    assert _select_zone_config(lookup, "room_1", "room_1_16_17_aug") is session_config
+    assert _select_zone_config(lookup, "room_1", "room_1_18_19_aug") is room_config
+    assert _select_zone_config(lookup, "room_2", "room_2_16_17_aug") is None
