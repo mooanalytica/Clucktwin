@@ -26,8 +26,8 @@ FEATURES = {
     "zone_feeding_log_selectivity": ("quality__zone_feeding_log_selectivity", "Feeding-zone selectivity"),
     "zone_resting_log_selectivity": ("quality__zone_resting_log_selectivity", "Resting-zone selectivity"),
     "zone_open_movement_log_selectivity": ("quality__zone_open_movement_log_selectivity", "Open-movement selectivity"),
-    "flock_spread_camera_normalized": ("quality__flock_spread_camera_normalized", "Camera-normalized spread"),
-    "video_activity_camera_normalized": ("quality__video_activity_camera_normalized", "Camera-normalized video activity"),
+    "flock_spread_camera_normalized": ("quality__flock_spread_camera_normalized", "Coverage-adjusted spread"),
+    "video_activity_camera_normalized": ("quality__video_activity_camera_normalized", "Coverage-adjusted video activity"),
     "behavior_active_fraction": ("quality__behavior_active_fraction", "Active behavior fraction"),
     "behavior_feeding_fraction": ("quality__behavior_feeding_fraction", "Feeding behavior fraction"),
     "behavior_idle_fraction": ("quality__behavior_idle_fraction", "Idle behavior fraction"),
@@ -443,6 +443,7 @@ def make_figure(matches: pd.DataFrame, statistics: pd.DataFrame, trajectory: pd.
     axes[1, 0].set_title("Matched acute response")
 
     isolation_pivot = isolation.pivot(index="feature", columns=["isolation_before_minutes", "isolation_after_minutes"], values="mean_immediate_difference_in_differences")
+    isolation_pivot.index = [FEATURES[feature][1] for feature in isolation_pivot.index]
     isolation_pivot.T.plot(kind="bar", ax=axes[1, 1], color=["#C05A73", "#4C956C", "#2C7FB8"])
     axes[1, 1].axhline(0, color="#555555", linewidth=0.8)
     axes[1, 1].set_xlabel("Isolation window (minutes)")

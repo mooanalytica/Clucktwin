@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clucktwin.local/schema/clucktwin-shadow-1.0.0.json",
+  "title": "CluckTwin digital-shadow record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_id",
+    "room_id",
+    "session_id",
+    "start_time",
+    "end_time",
+    "update_cadence_seconds",
+    "spatial_assignment",
+    "flock",
+    "zones",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "clucktwin.shadow/1.0.0"
+    },
+    "record_id": {
+      "type": "string"
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "update_cadence_seconds": {
+      "type": "number",
+      "const": 30
+    },
+    "spatial_assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "point",
+        "priority",
+        "out_of_polygon"
+      ],
+      "properties": {
+        "point": {
+          "const": "bounding_box_bottom_center"
+        },
+        "priority": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "drinking"
+            },
+            {
+              "const": "feeding"
+            },
+            {
+              "const": "resting"
+            },
+            {
+              "const": "open_movement"
+            }
+          ],
+          "items": false
+        },
+        "out_of_polygon": {
+          "const": "outside"
+        }
+      }
+    },
+    "flock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visible_bird_count_mean",
+        "dominant_behavior"
+      ],
+      "properties": {
+        "visible_bird_count_mean": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "dominant_behavior": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "zones": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "zone_id",
+          "bird_count_mean"
+        ],
+        "properties": {
+          "zone_id": {
+            "type": "string",
+            "enum": [
+              "drinking",
+              "feeding",
+              "resting",
+              "open_movement",
+              "outside"
+            ]
+          },
+          "bird_count_mean": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Mean uniquely detected birds per second during the 30 s record."
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_video",
+        "source_window_id",
+        "producer"
+      ],
+      "properties": {
+        "source_video": {
+          "type": "string"
+        },
+        "source_window_id": {
+          "type": "string"
+        },
+        "producer": {
+          "const": "Temporal Behavior Classification Model downstream canonicalizer"
+        }
+      }
+    }
+  }
+}

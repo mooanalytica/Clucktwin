@@ -32,10 +32,10 @@ METRICS = {
     "drinking_activity_fraction": ("quality_video", "Drinking-zone pixel activity share", "#2B7A9B"),
     "resting_activity_fraction": ("quality_video", "Resting-zone pixel activity share", "#6C8E4E"),
     "open_movement_activity_fraction": ("quality_video", "Open-movement pixel activity share", "#8C644B"),
-    "flock_spread_camera_normalized": ("quality__flock_spread_camera_normalized", "Camera-normalized flock spread", "#28756D"),
+    "flock_spread_camera_normalized": ("quality__flock_spread_camera_normalized", "Coverage-adjusted flock spread", "#28756D"),
     "position_grid_entropy": ("quality__position_grid_entropy", "Position-grid entropy", "#4B6FA8"),
     "zone_entropy": ("quality__zone_entropy", "Zone entropy", "#76567D"),
-    "video_activity_camera_normalized": ("quality__video_activity_camera_normalized", "Camera-normalized video activity", "#C25B50"),
+    "video_activity_camera_normalized": ("quality__video_activity_camera_normalized", "Coverage-adjusted video activity", "#C25B50"),
     "behavior_active_fraction": ("quality__behavior_active_fraction", "Active-behavior fraction", "#D47A2C"),
     "behavior_feeding_fraction": ("quality__behavior_feeding_fraction", "Feeding-behavior fraction", "#B48A2C"),
 }
@@ -151,7 +151,7 @@ def make_figure(weekly: pd.DataFrame, trends: pd.DataFrame) -> None:
     axes[0, 1].set_ylabel("Normalized entropy")
 
     plot_metric(axes[1, 0], weekly, trends, "flock_spread_camera_normalized")
-    axes[1, 0].set_title("Camera-adjusted flock spread")
+    axes[1, 0].set_title("Coverage-adjusted flock spread")
     axes[1, 0].set_ylabel("Normalized image-plane spread")
 
     for metric in ["behavior_feeding_fraction", "behavior_active_fraction"]:
